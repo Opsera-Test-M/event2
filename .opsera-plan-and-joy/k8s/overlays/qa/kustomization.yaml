@@ -19,7 +19,7 @@ patches:
 images:
   - name: plan-and-joy
     newName: 792373136340.dkr.ecr.us-west-2.amazonaws.com/opsera/plan-and-joy
-    newTag: canary-9dafe59-20260128230104
+    newTag: canary-1496a87-20260128231302
 
 commonLabels:
   environment: qa
