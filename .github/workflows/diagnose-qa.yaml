@@ -1,0 +1,50 @@
+# Quick QA Diagnostic
+name: "🔍 Diagnose QA"
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-west-2
+  
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Check QA Resources
+        run: |
+          aws eks update-kubeconfig --name argocd-usw2 --region ${{ env.AWS_REGION }}
+          
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "📊 QA NAMESPACE STATUS"
+          echo "═══════════════════════════════════════════════════════════════"
+          
+          echo ""
+          echo "🔍 Namespace:"
+          kubectl get namespace plan-and-joy-qa || echo "❌ Not found"
+          
+          echo ""
+          echo "🔍 All resources in plan-and-joy-qa:"
+          kubectl get all -n plan-and-joy-qa || echo "❌ No resources"
+          
+          echo ""
+          echo "🔍 Ingress:"
+          kubectl get ingress -n plan-and-joy-qa -o yaml || echo "❌ No ingress"
+          
+          echo ""
+          echo "🔍 Certificates:"
+          kubectl get certificates -n plan-and-joy-qa || echo "❌ No certs"
+          
+          echo ""
+          echo "🔍 Certificate Requests:"
+          kubectl get certificaterequests -n plan-and-joy-qa || echo "❌ No cert requests"
+          
+          echo ""
+          echo "🔍 Events (last 10):"
+          kubectl get events -n plan-and-joy-qa --sort-by='.lastTimestamp' | tail -10 || echo "❌ No events"
