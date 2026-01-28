@@ -351,8 +351,15 @@ jobs:
           
           echo "🚀 Promoting canary to stable deployment..."
           
-          # Create/Update stable deployment with canary image
-          cat <<EOF | kubectl apply -f -
+          # Check if stable deployment exists
+          if kubectl get deployment ${{ env.APP_NAME }} -n $NAMESPACE 2>/dev/null; then
+            echo "📝 Updating existing deployment image..."
+            kubectl set image deployment/${{ env.APP_NAME }} \
+              ${{ env.APP_NAME }}=${ECR_URI}:${IMAGE_TAG} \
+              -n $NAMESPACE
+          else
+            echo "🆕 Creating new stable deployment..."
+            cat <<EOF | kubectl apply -f -
           apiVersion: apps/v1
           kind: Deployment
           metadata:
@@ -360,18 +367,15 @@ jobs:
             namespace: $NAMESPACE
             labels:
               app: ${{ env.APP_NAME }}
-              version: stable
           spec:
             replicas: 2
             selector:
               matchLabels:
                 app: ${{ env.APP_NAME }}
-                version: stable
             template:
               metadata:
                 labels:
                   app: ${{ env.APP_NAME }}
-                  version: stable
               spec:
                 containers:
                   - name: ${{ env.APP_NAME }}
@@ -397,7 +401,11 @@ jobs:
                         port: 8080
                       failureThreshold: 30
                       periodSeconds: 2
-          ---
+          EOF
+          fi
+
+          # Ensure service exists
+          cat <<EOF | kubectl apply -f -
           apiVersion: v1
           kind: Service
           metadata:
@@ -406,11 +414,13 @@ jobs:
           spec:
             selector:
               app: ${{ env.APP_NAME }}
-              version: stable
             ports:
               - port: 80
                 targetPort: 8080
-          ---
+          EOF
+
+          # Ensure ingress exists (using cert-manager for TLS)
+          cat <<EOF | kubectl apply -f -
           apiVersion: networking.k8s.io/v1
           kind: Ingress
           metadata:
@@ -418,10 +428,7 @@ jobs:
             namespace: $NAMESPACE
             annotations:
               cert-manager.io/cluster-issuer: "letsencrypt-prod"
-              alb.ingress.kubernetes.io/scheme: internet-facing
-              alb.ingress.kubernetes.io/target-type: ip
           spec:
-            ingressClassName: alb
             tls:
               - hosts:
                   - $HOST
