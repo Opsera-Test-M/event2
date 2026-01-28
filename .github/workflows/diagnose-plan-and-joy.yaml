@@ -1,0 +1,96 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# 🔍 Diagnose Deployment - Plan & Joy
+# Quick diagnostic workflow to check pod and deployment status
+# ═══════════════════════════════════════════════════════════════════════════
+name: "🔍 Diagnose - plan-and-joy"
+
+on:
+  workflow_dispatch:
+
+env:
+  APP_NAME: plan-and-joy
+  ENVIRONMENT: dev
+  AWS_REGION: us-west-2
+  SPOKE_CLUSTER: opsera-usw2-np
+  HUB_CLUSTER: argocd-usw2
+
+jobs:
+  diagnose:
+    name: "🔍 Diagnose Deployment"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check ArgoCD Application Status
+        run: |
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "📋 ARGOCD APPLICATION STATUS"
+          echo "═══════════════════════════════════════════════════════════════"
+          aws eks update-kubeconfig --name ${{ env.HUB_CLUSTER }} --region ${{ env.AWS_REGION }}
+          kubectl get application ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -n argocd -o wide
+          echo ""
+          echo "--- Sync & Health ---"
+          kubectl get application ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -n argocd \
+            -o jsonpath='Sync: {.status.sync.status} | Health: {.status.health.status}{"\n"}'
+          echo ""
+          echo "--- Resources ---"
+          kubectl get application ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -n argocd \
+            -o jsonpath='{range .status.resources[*]}{.kind}: {.name} ({.health.status}){"\n"}{end}' || true
+
+      - name: Check Spoke Cluster Resources
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "📦 SPOKE CLUSTER RESOURCES"
+          echo "═══════════════════════════════════════════════════════════════"
+          aws eks update-kubeconfig --name ${{ env.SPOKE_CLUSTER }} --region ${{ env.AWS_REGION }}
+          
+          echo ""
+          echo "--- Namespace ---"
+          kubectl get namespace ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} || echo "Namespace not found!"
+          
+          echo ""
+          echo "--- Pods ---"
+          kubectl get pods -n ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -o wide || echo "No pods found!"
+          
+          echo ""
+          echo "--- Pod Details ---"
+          kubectl describe pods -n ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} 2>/dev/null | head -100 || echo "No pods to describe"
+          
+          echo ""
+          echo "--- Pod Logs ---"
+          kubectl logs -n ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -l app=${{ env.APP_NAME }} --tail=50 2>/dev/null || echo "No logs available"
+          
+          echo ""
+          echo "--- Deployment ---"
+          kubectl get deployment -n ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -o wide || echo "No deployment found!"
+          
+          echo ""
+          echo "--- Service ---"
+          kubectl get service -n ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -o wide || echo "No service found!"
+          
+          echo ""
+          echo "--- Ingress ---"
+          kubectl get ingress -n ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -o wide || echo "No ingress found!"
+          
+          echo ""
+          echo "--- Events ---"
+          kubectl get events -n ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} --sort-by='.lastTimestamp' | tail -20 || echo "No events"
+
+      - name: Check Image Pull Status
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "🐳 IMAGE PULL STATUS"
+          echo "═══════════════════════════════════════════════════════════════"
+          kubectl get pods -n ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -o jsonpath='{range .items[*]}{.metadata.name}: {.status.containerStatuses[*].state}{"\n"}{end}' 2>/dev/null || echo "No pods"
+          
+          echo ""
+          echo "--- Image Being Used ---"
+          kubectl get deployment ${{ env.APP_NAME }} -n ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} \
+            -o jsonpath='{.spec.template.spec.containers[*].image}' 2>/dev/null || echo "Deployment not found"
