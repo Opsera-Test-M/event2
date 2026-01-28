@@ -12,10 +12,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - PLACEHOLDER_SUBDOMAIN
+        - opsera-plan-and-joy-dev.agent.opsera.dev
       secretName: plan-and-joy-dev-tls
   rules:
-    - host: PLACEHOLDER_SUBDOMAIN
+    - host: opsera-plan-and-joy-dev.agent.opsera.dev
       http:
         paths:
           - path: /

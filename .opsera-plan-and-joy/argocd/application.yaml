@@ -17,7 +17,7 @@ spec:
   project: default
 
   source:
-    repoURL: PLACEHOLDER_REPO_URL
+    repoURL: https://github.com/Opsera-Test-M/event2
     targetRevision: main
     path: .opsera-plan-and-joy/k8s/overlays/dev
 
