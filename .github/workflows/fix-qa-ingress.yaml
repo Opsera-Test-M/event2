@@ -1,0 +1,38 @@
+# Fix QA Ingress - Delete broken ingress and let ArgoCD recreate it
+name: "🔧 Fix QA Ingress"
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-west-2
+  
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Fix QA Ingress
+        run: |
+          aws eks update-kubeconfig --name argocd-usw2 --region ${{ env.AWS_REGION }}
+          
+          echo "🗑️ Deleting broken ingress..."
+          kubectl delete ingress plan-and-joy -n plan-and-joy-qa --ignore-not-found
+          
+          echo "🔄 Triggering ArgoCD sync..."
+          kubectl patch application plan-and-joy-qa -n argocd --type merge -p '{"operation":{"initiatedBy":{"username":"github-actions"},"sync":{"revision":"HEAD"}}}'
+          
+          echo "⏳ Waiting for sync..."
+          sleep 30
+          
+          echo "🔍 Checking new ingress..."
+          kubectl get ingress -n plan-and-joy-qa -o wide
+          
+          echo ""
+          echo "🔍 Ingress details:"
+          kubectl describe ingress plan-and-joy -n plan-and-joy-qa || echo "Ingress not yet created"
