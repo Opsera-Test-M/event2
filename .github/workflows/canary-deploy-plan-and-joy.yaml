@@ -404,8 +404,10 @@ jobs:
           EOF
           fi
 
-          # Ensure service exists
-          cat <<EOF | kubectl apply -f -
+          # Ensure service exists (only if not already present)
+          if ! kubectl get service ${{ env.APP_NAME }} -n $NAMESPACE 2>/dev/null; then
+            echo "🆕 Creating service..."
+            cat <<EOF | kubectl apply -f -
           apiVersion: v1
           kind: Service
           metadata:
@@ -418,35 +420,13 @@ jobs:
               - port: 80
                 targetPort: 8080
           EOF
+          else
+            echo "✅ Service already exists (managed by ArgoCD)"
+          fi
 
-          # Ensure ingress exists (using cert-manager for TLS)
-          cat <<EOF | kubectl apply -f -
-          apiVersion: networking.k8s.io/v1
-          kind: Ingress
-          metadata:
-            name: ${{ env.APP_NAME }}
-            namespace: $NAMESPACE
-            annotations:
-              cert-manager.io/cluster-issuer: "letsencrypt-prod"
-              nginx.ingress.kubernetes.io/ssl-redirect: "true"
-          spec:
-            ingressClassName: nginx
-            tls:
-              - hosts:
-                  - $HOST
-                secretName: ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }}-tls
-            rules:
-              - host: $HOST
-                http:
-                  paths:
-                    - path: /
-                      pathType: Prefix
-                      backend:
-                        service:
-                          name: ${{ env.APP_NAME }}
-                          port:
-                            number: 80
-          EOF
+          # Note: Ingress is managed by ArgoCD via Kustomize overlays
+          # Do NOT recreate ingress here to avoid conflicts with ALB webhook
+          echo "ℹ️  Ingress managed by ArgoCD - skipping direct creation"
 
           # Wait for stable deployment
           kubectl rollout status deployment/${{ env.APP_NAME }} -n $NAMESPACE --timeout=180s
