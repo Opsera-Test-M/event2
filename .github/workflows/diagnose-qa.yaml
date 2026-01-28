@@ -19,7 +19,8 @@ jobs:
           
       - name: Check QA Resources
         run: |
-          aws eks update-kubeconfig --name argocd-usw2 --region ${{ env.AWS_REGION }}
+          # Connect to SPOKE cluster where apps run (not hub)
+          aws eks update-kubeconfig --name opsera-usw2-np --region ${{ env.AWS_REGION }}
           
           echo "═══════════════════════════════════════════════════════════════"
           echo "📊 QA NAMESPACE STATUS"
