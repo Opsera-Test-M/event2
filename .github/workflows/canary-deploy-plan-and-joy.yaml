@@ -40,6 +40,8 @@ env:
   AWS_REGION: us-west-2
   ENVIRONMENT: ${{ github.event.inputs.environment || 'qa' }}
   DOMAIN: agent.opsera.dev
+  HUB_CLUSTER: argocd-usw2
+  SPOKE_CLUSTER: opsera-usw2-np
 
 concurrency:
   group: canary-${{ github.workflow }}-${{ github.ref }}
@@ -167,8 +169,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Connect to EKS
-        run: aws eks update-kubeconfig --name argocd-usw2 --region ${{ env.AWS_REGION }}
+      - name: Connect to Spoke Cluster
+        run: aws eks update-kubeconfig --name ${{ env.SPOKE_CLUSTER }} --region ${{ env.AWS_REGION }}
 
       - name: Ensure Namespace Exists
         run: |
@@ -293,8 +295,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Connect to EKS
-        run: aws eks update-kubeconfig --name argocd-usw2 --region ${{ env.AWS_REGION }}
+      - name: Connect to Spoke Cluster
+        run: aws eks update-kubeconfig --name ${{ env.SPOKE_CLUSTER }} --region ${{ env.AWS_REGION }}
 
       - name: Verify Canary Still Healthy
         id: check
@@ -338,8 +340,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Connect to EKS
-        run: aws eks update-kubeconfig --name argocd-usw2 --region ${{ env.AWS_REGION }}
+      - name: Connect to Spoke Cluster
+        run: aws eks update-kubeconfig --name ${{ env.SPOKE_CLUSTER }} --region ${{ env.AWS_REGION }}
 
       - name: Update Stable Deployment
         env:
@@ -491,8 +493,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Connect to EKS
-        run: aws eks update-kubeconfig --name argocd-usw2 --region ${{ env.AWS_REGION }}
+      - name: Connect to Spoke Cluster
+        run: aws eks update-kubeconfig --name ${{ env.SPOKE_CLUSTER }} --region ${{ env.AWS_REGION }}
 
       - name: Rollback Canary
         run: |

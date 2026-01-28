@@ -21,7 +21,7 @@ spec:
     targetRevision: main
     path: .opsera-plan-and-joy/k8s/overlays/qa
   destination:
-    server: https://kubernetes.default.svc
+    name: opsera-usw2-np
     namespace: plan-and-joy-qa
   syncPolicy:
     automated:
