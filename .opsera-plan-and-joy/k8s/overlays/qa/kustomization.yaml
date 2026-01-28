@@ -18,7 +18,7 @@ patches:
 
 images:
   - name: plan-and-joy
-    newName: PLACEHOLDER_ECR_URI
+    newName: 792373136340.dkr.ecr.us-west-2.amazonaws.com/opsera/plan-and-joy
     newTag: latest
 
 commonLabels:
