@@ -13,7 +13,4 @@ resources:
 commonLabels:
   app.kubernetes.io/managed-by: opsera
 
-images:
-  - name: plan-and-joy
-    newName: 792373136340.dkr.ecr.us-west-2.amazonaws.com/opsera/plan-and-joy
-    newTag: latest
+# Images are managed by environment overlays (dev/staging/prod)
