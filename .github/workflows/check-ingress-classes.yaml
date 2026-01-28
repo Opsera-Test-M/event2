@@ -1,0 +1,37 @@
+# Check Ingress Classes
+name: "🔍 Check Ingress Classes"
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-west-2
+  
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Check Ingress Classes
+        run: |
+          aws eks update-kubeconfig --name argocd-usw2 --region ${{ env.AWS_REGION }}
+          
+          echo "🔍 Available Ingress Classes:"
+          kubectl get ingressclass -o wide
+          
+          echo ""
+          echo "🔍 DEV Ingress (working):"
+          kubectl get ingress -n plan-and-joy-dev -o yaml | grep -E "class|Class|spec:" -A5 | head -20
+          
+          echo ""
+          echo "🔍 DEV Ingress annotations:"
+          kubectl get ingress plan-and-joy -n plan-and-joy-dev -o jsonpath='{.metadata.annotations}' | jq .
+          
+          echo ""
+          echo "🔍 AWS Load Balancer Controller webhook:"
+          kubectl get validatingwebhookconfigurations | grep -i alb || echo "No ALB webhooks"
