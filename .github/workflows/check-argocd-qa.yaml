@@ -1,0 +1,53 @@
+# Check ArgoCD QA Application
+name: "🔍 Check ArgoCD QA"
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-west-2
+  
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Check ArgoCD Status
+        run: |
+          aws eks update-kubeconfig --name argocd-usw2 --region ${{ env.AWS_REGION }}
+          
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "📊 ARGOCD APPLICATION STATUS"
+          echo "═══════════════════════════════════════════════════════════════"
+          
+          echo ""
+          echo "🔍 Application List:"
+          kubectl get applications -n argocd | grep plan-and-joy
+          
+          echo ""
+          echo "🔍 QA Application Details:"
+          kubectl get application plan-and-joy-qa -n argocd -o yaml | head -80
+          
+          echo ""
+          echo "🔍 QA Application Health/Sync:"
+          kubectl get application plan-and-joy-qa -n argocd -o jsonpath='{.status.sync.status}{"\n"}'
+          kubectl get application plan-and-joy-qa -n argocd -o jsonpath='{.status.health.status}{"\n"}'
+          
+          echo ""
+          echo "🔍 QA Namespace Resources:"
+          kubectl get all,ingress -n plan-and-joy-qa
+          
+          echo ""
+          echo "🔄 Force sync..."
+          kubectl -n argocd patch application plan-and-joy-qa --type=merge -p='{"operation":{"initiatedBy":{"username":"github"},"sync":{"prune":true}}}'
+          
+          sleep 20
+          
+          echo ""
+          echo "🔍 After sync - ingress:"
+          kubectl get ingress -n plan-and-joy-qa -o wide
