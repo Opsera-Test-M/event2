@@ -22,4 +22,4 @@ commonAnnotations:
 images:
   - name: plan-and-joy
     newName: 792373136340.dkr.ecr.us-west-2.amazonaws.com/opsera/plan-and-joy
-    newTag: 0cedf84-20260128194237
+    newTag: a492863-20260128195531
