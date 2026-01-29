@@ -426,36 +426,9 @@ jobs:
             echo "✅ Service already exists (managed by ArgoCD)"
           fi
 
-          # Create ingress on SPOKE cluster (ArgoCD can't due to hub's ALB webhook)
-          echo "🌐 Creating ingress on spoke cluster..."
-          cat <<EOF | kubectl apply -f -
-          apiVersion: networking.k8s.io/v1
-          kind: Ingress
-          metadata:
-            name: ${{ env.APP_NAME }}
-            namespace: $NAMESPACE
-            annotations:
-              cert-manager.io/cluster-issuer: "letsencrypt-prod"
-              nginx.ingress.kubernetes.io/ssl-redirect: "true"
-          spec:
-            ingressClassName: nginx
-            tls:
-              - hosts:
-                  - $HOST
-                secretName: ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }}-tls
-            rules:
-              - host: $HOST
-                http:
-                  paths:
-                    - path: /
-                      pathType: Prefix
-                      backend:
-                        service:
-                          name: ${{ env.APP_NAME }}
-                          port:
-                            number: 80
-          EOF
-          echo "✅ Ingress created"
+          # Ingress managed by ArgoCD via Kustomize overlays (GitOps)
+          echo "ℹ️  Ingress managed by ArgoCD - verifying it exists..."
+          kubectl get ingress ${{ env.APP_NAME }} -n $NAMESPACE || echo "⚠️ Ingress not yet synced by ArgoCD"
 
           # Wait for stable deployment
           kubectl rollout status deployment/${{ env.APP_NAME }} -n $NAMESPACE --timeout=180s

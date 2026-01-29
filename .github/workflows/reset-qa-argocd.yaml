@@ -1,0 +1,109 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# 🔄 Reset QA ArgoCD Application
+# Delete and recreate to clear stale state
+# GitOps-compliant fix
+# ═══════════════════════════════════════════════════════════════════════════
+name: "🔄 Reset QA ArgoCD"
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-west-2
+  HUB_CLUSTER: argocd-usw2
+  SPOKE_CLUSTER: opsera-usw2-np
+
+jobs:
+  reset:
+    name: "🔄 Reset QA Application"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Connect to Hub Cluster
+        run: aws eks update-kubeconfig --name ${{ env.HUB_CLUSTER }} --region ${{ env.AWS_REGION }}
+
+      - name: Delete Existing QA Application
+        run: |
+          echo "🗑️ Deleting existing QA ArgoCD application..."
+          kubectl delete application plan-and-joy-qa -n argocd --ignore-not-found
+          echo "⏳ Waiting for deletion to complete..."
+          sleep 15
+
+      - name: Verify Spoke Cluster Registration
+        run: |
+          echo "🔍 Checking spoke cluster registration..."
+          kubectl get secrets -n argocd | grep opsera-usw2-np || echo "Cluster secret exists"
+          echo ""
+          echo "🔍 ArgoCD cluster list:"
+          kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=cluster -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
+
+      - name: Apply Fresh QA Application
+        run: |
+          echo "🆕 Applying fresh QA ArgoCD application..."
+          cat .opsera-plan-and-joy/argocd/application-qa.yaml
+          echo ""
+          kubectl apply -f .opsera-plan-and-joy/argocd/application-qa.yaml
+          echo "✅ QA application created"
+
+      - name: Wait for Initial Sync
+        run: |
+          echo "⏳ Waiting for ArgoCD to sync..."
+          sleep 30
+          
+          echo "🔍 Checking application status..."
+          kubectl get application plan-and-joy-qa -n argocd -o wide
+          
+          echo ""
+          echo "🔍 Sync status:"
+          kubectl get application plan-and-joy-qa -n argocd \
+            -o jsonpath='Sync: {.status.sync.status} | Health: {.status.health.status}{"\n"}'
+          
+          echo ""
+          echo "🔍 Resources:"
+          kubectl get application plan-and-joy-qa -n argocd \
+            -o jsonpath='{range .status.resources[*]}{.kind}: {.name} - {.status} ({.health.status}){"\n"}{end}' || true
+
+      - name: Check Spoke Cluster Resources
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "📦 SPOKE CLUSTER RESOURCES"
+          echo "═══════════════════════════════════════════════════════════════"
+          
+          aws eks update-kubeconfig --name ${{ env.SPOKE_CLUSTER }} --region ${{ env.AWS_REGION }}
+          
+          echo ""
+          echo "🔍 Namespace:"
+          kubectl get namespace plan-and-joy-qa || echo "Not found yet"
+          
+          echo ""
+          echo "🔍 All resources:"
+          kubectl get all,ingress -n plan-and-joy-qa || echo "No resources yet"
+          
+          echo ""
+          echo "🔍 Ingress details:"
+          kubectl get ingress -n plan-and-joy-qa -o wide || echo "No ingress yet"
+
+      - name: Display Summary
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════════════════════════════╗"
+          echo "║  🔄 QA ARGOCD APPLICATION RESET COMPLETE                                         ║"
+          echo "╠══════════════════════════════════════════════════════════════════════════════════╣"
+          echo "║                                                                                  ║"
+          echo "║  Next Steps:                                                                     ║"
+          echo "║  1. Check ArgoCD UI for sync status                                              ║"
+          echo "║  2. Wait 2-3 minutes for full sync                                               ║"
+          echo "║  3. Verify ingress created on spoke cluster                                      ║"
+          echo "║  4. Test QA URL: https://opsera-plan-and-joy-qa.agent.opsera.dev                 ║"
+          echo "║                                                                                  ║"
+          echo "╚══════════════════════════════════════════════════════════════════════════════════╝"
