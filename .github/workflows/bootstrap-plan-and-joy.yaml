@@ -24,9 +24,14 @@ env:
   TENANT: opsera
   AWS_REGION: ${{ github.event.inputs.region || 'us-west-2' }}
   ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+  DOMAIN: agent.opsera.dev
+  # ════════════════════════════════════════════════════════════════════════════
+  # Hub-Spoke Architecture (SKILL-HUB-SPOKE-001)
+  # HUB_CLUSTER: Where ArgoCD runs (management plane)
+  # SPOKE_CLUSTER: Where applications run (workload plane)
+  # ════════════════════════════════════════════════════════════════════════════
   HUB_CLUSTER: argocd-usw2
   SPOKE_CLUSTER: opsera-usw2-np
-  DOMAIN: agent.opsera.dev
 
 concurrency:
   group: bootstrap-${{ github.event.inputs.environment || 'dev' }}
@@ -199,6 +204,21 @@ jobs:
           aws eks update-kubeconfig --name ${{ env.HUB_CLUSTER }} --region ${{ env.AWS_REGION }}
           kubectl cluster-info
 
+      - name: Verify Spoke Cluster Registration
+        run: |
+          echo "🔍 Verifying spoke cluster is registered with ArgoCD..."
+          
+          if kubectl get secret -n argocd -l argocd.argoproj.io/secret-type=cluster | grep -q "${{ env.SPOKE_CLUSTER }}"; then
+            echo "✅ Spoke cluster '${{ env.SPOKE_CLUSTER }}' is registered with ArgoCD"
+          else
+            echo "⚠️ Warning: Spoke cluster secret not found by name"
+            echo "Available cluster secrets:"
+            kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=cluster \
+              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
+            echo ""
+            echo "Proceeding - cluster may be registered under different identifier"
+          fi
+
       - name: Create ArgoCD Repository Secret
         run: |
           REPO_URL=$(git remote get-url origin)
@@ -225,11 +245,36 @@ jobs:
           kubectl apply -f .opsera-${{ env.APP_NAME }}/argocd/application.yaml
           echo "✅ ArgoCD application applied"
 
-      - name: Verify ArgoCD Application
+      - name: Verify ArgoCD Application Sync
         run: |
-          sleep 10
-          kubectl get application ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -n argocd
-          echo "✅ ArgoCD application verified"
+          echo "⏳ Waiting for ArgoCD to process application..."
+          sleep 15
+          
+          MAX_ATTEMPTS=20
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            STATUS=$(kubectl get app ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -n argocd \
+              -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Pending")
+            HEALTH=$(kubectl get app ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -n argocd \
+              -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Pending")
+            
+            echo "[$i/$MAX_ATTEMPTS] Sync: $STATUS | Health: $HEALTH"
+            
+            if [ "$STATUS" = "Unknown" ]; then
+              echo ""
+              echo "⚠️ Warning: Sync status 'Unknown' - possible cluster connectivity issue"
+              echo "Run 'refresh-argocd-cluster.yaml' workflow if this persists"
+            fi
+            
+            if [ "$STATUS" = "Synced" ]; then
+              echo "✅ ArgoCD application synced successfully"
+              break
+            fi
+            
+            sleep 10
+          done
+          
+          kubectl get application ${{ env.APP_NAME }}-${{ env.ENVIRONMENT }} -n argocd -o wide
+          echo "✅ ArgoCD application verification complete"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Job 4: Summary
